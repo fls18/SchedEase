@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Subject, Section, TimeSlot } from './types';
 import CourseForm from './components/CourseForm';
 import TimetableGrid from './components/TimetableGrid';
@@ -10,46 +10,54 @@ const App: React.FC = () => {
   const [schedule, setSchedule] = useState<{ [subjectId: string]: string }>({});
   const [selectedItem, setSelectedItem] = useState<{ subject: Subject; section: Section } | null>(null);
 
-  const timeToMinutes = (time: string) => {
+  const timeToMinutes = useCallback((time: string) => {
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
-  };
+  }, []);
 
-  const isOverlapping = (slot1: TimeSlot, slot2: TimeSlot) => {
+  const isOverlapping = useCallback((slot1: TimeSlot, slot2: TimeSlot) => {
     if (slot1.day !== slot2.day) return false;
     const start1 = timeToMinutes(slot1.startTime);
     const end1 = timeToMinutes(slot1.endTime);
     const start2 = timeToMinutes(slot2.startTime);
     const end2 = timeToMinutes(slot2.endTime);
     return start1 < end2 && start2 < end1;
-  };
+  }, [timeToMinutes]);
 
   const scheduledCourses = useMemo(() => {
     return Object.entries(schedule).map(([subjectId, sectionId]) => {
       const subject = catalog.find(s => s.id === subjectId);
       const section = subject?.sections.find(sec => sec.id === sectionId);
       return subject && section ? { subject, section } : null;
-    }).filter(item => item !== null) as { subject: Subject; section: Section }[];
+    }).filter((item): item is { subject: Subject; section: Section } => item !== null);
   }, [schedule, catalog]);
 
-  const handleAddSubject = (newSubject: Subject) => {
+  const handleAddSubject = useCallback((newSubject: Subject) => {
     if (catalog.some(s => s.name === newSubject.name)) {
       alert('이미 동일한 이름의 과목이 존재합니다.');
       return;
     }
     setCatalog((prev) => [...prev, newSubject]);
-  };
+  }, [catalog]);
 
-  const handleUpdateSubject = (updatedSubject: Subject) => {
+  const handleUpdateSubject = useCallback((updatedSubject: Subject) => {
     setCatalog((prev) => prev.map(s => s.id === updatedSubject.id ? updatedSubject : s));
-  };
+  }, []);
 
-  const handleRemoveSubject = (id: string) => {
+  const handleRemoveFromSchedule = useCallback((subjectId: string) => {
+    setSchedule(prev => {
+      const newSchedule = { ...prev };
+      delete newSchedule[subjectId];
+      return newSchedule;
+    });
+  }, []);
+
+  const handleRemoveSubject = useCallback((id: string) => {
     setCatalog((prev) => prev.filter((s) => s.id !== id));
     handleRemoveFromSchedule(id);
-  };
+  }, [handleRemoveFromSchedule]);
 
-  const handleToggleSection = (subjectId: string, sectionId: string) => {
+  const handleToggleSection = useCallback((subjectId: string, sectionId: string) => {
     const subject = catalog.find(s => s.id === subjectId);
     const section = subject?.sections.find(sec => sec.id === sectionId);
     if (!subject || !section) return;
@@ -62,7 +70,7 @@ const App: React.FC = () => {
 
     // Overlap Check
     for (const scheduled of scheduledCourses) {
-      if (scheduled.subject.id === subjectId) continue; // Same subject replacement is fine
+      if (scheduled.subject.id === subjectId) continue; 
       for (const scheduledSlot of scheduled.section.timeSlots) {
         for (const targetSlot of section.timeSlots) {
           if (isOverlapping(scheduledSlot, targetSlot)) {
@@ -74,15 +82,7 @@ const App: React.FC = () => {
     }
 
     setSchedule(prev => ({ ...prev, [subjectId]: sectionId }));
-  };
-
-  const handleRemoveFromSchedule = (subjectId: string) => {
-    setSchedule(prev => {
-      const newSchedule = { ...prev };
-      delete newSchedule[subjectId];
-      return newSchedule;
-    });
-  };
+  }, [catalog, schedule, scheduledCourses, isOverlapping, handleRemoveFromSchedule]);
 
   const totalCredits = useMemo(() => {
     return scheduledCourses.reduce((acc, curr) => acc + curr.subject.credits, 0);
@@ -113,8 +113,7 @@ const App: React.FC = () => {
 
       <main className="max-w-[1400px] mx-auto px-4 pt-6">
         <div className="flex flex-col xl:flex-row gap-6">
-          {/* Sidebar / Left Column */}
-          <aside className="w-full xl:w-[480px] flex-shrink-0 space-y-4">
+          <aside className="w-full xl:w-[480px] flex-shrink-0 space-y-4 no-print">
             <CourseForm onAddSubject={handleAddSubject} />
             
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -183,16 +182,15 @@ const App: React.FC = () => {
             </div>
           </aside>
 
-          {/* Timetable Area */}
           <div className="flex-grow">
-             <div className="flex items-center justify-between mb-3">
+             <div className="flex items-center justify-between mb-3 no-print">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                    주간 시간표
                 </h2>
                 <div className="flex gap-2">
-                  <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-sm">
-                    이미지로 저장
+                  <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-sm transition-all active:scale-95">
+                    인쇄 / PDF 저장
                   </button>
                 </div>
              </div>
@@ -215,8 +213,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Mobile Stats Bar */}
-      <div className="xl:hidden fixed bottom-4 left-4 right-4 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-50">
+      <div className="xl:hidden fixed bottom-4 left-4 right-4 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-50 no-print">
          <div>
             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Credits</div>
             <div className="text-xl font-black">{totalCredits} 학점</div>
