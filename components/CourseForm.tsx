@@ -1,9 +1,6 @@
 
 import React, { useState } from 'react';
 import { Subject, Section, TimeSlot, DayOfWeek, DAYS, COLORS, TIME_OPTIONS } from '../types';
-import { parseCourseInput } from "../services/geminiService";
-
-const result = await parseCourseInput(userInput);
 
 interface CourseFormProps {
   onAddSubject: (subject: Subject) => void;
