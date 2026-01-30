@@ -1,0 +1,5 @@
+{
+  "name": "Smart University Timetable Planner",
+  "description": "A comprehensive React-based timetable planner allowing users to add courses, manage sections, and visualize their weekly schedule with automatic credit calculation and overlap detection.",
+  "requestFramePermissions": []
+}
